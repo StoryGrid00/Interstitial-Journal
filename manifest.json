@@ -2,7 +2,8 @@
   "name": "Field Journal",
   "short_name": "Field Journal",
   "description": "A quick-capture interstitial journal for field notes between moments.",
-  "start_url": "/",
+  "start_url": "/Interstitial-Journal/",
+  "scope": "/Interstitial-Journal/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#1B2A4A",
@@ -28,7 +29,7 @@
       "name": "New Entry",
       "short_name": "New",
       "description": "Quickly add a new journal entry",
-      "url": "/?new=1",
+      "url": "/Interstitial-Journal/?new=1",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ]

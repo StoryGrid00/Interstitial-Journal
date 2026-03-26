@@ -1,19 +1,19 @@
-/* ═══════════════════════════════════════════════════
-   Field Journal — Service Worker
+/* =======================================================
+   Field Journal - Service Worker
    Strategy: Cache-first for app shell, network-first for data
-═══════════════════════════════════════════════════ */
+======================================================= */
 
-const CACHE_NAME = 'field-journal-v8';
+const CACHE_NAME = 'field-journal-v9';
 const APP_SHELL = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
+  '/Interstitial-Journal/',
+  '/Interstitial-Journal/index.html',
+  '/Interstitial-Journal/manifest.json',
+  '/Interstitial-Journal/icons/icon-192.png',
+  '/Interstitial-Journal/icons/icon-512.png',
   'https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap'
 ];
 
-// ── Install: pre-cache app shell ──────────────────
+// -- Install: pre-cache app shell --
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
@@ -22,7 +22,7 @@ self.addEventListener('install', event => {
   );
 });
 
-// ── Activate: clean old caches ────────────────────
+// -- Activate: clean old caches --
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -33,7 +33,7 @@ self.addEventListener('activate', event => {
   );
 });
 
-// ── Fetch: cache-first for app shell ─────────────
+// -- Fetch: cache-first for app shell --
 self.addEventListener('fetch', event => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
@@ -61,7 +61,7 @@ self.addEventListener('fetch', event => {
       }).catch(() => {
         // Offline fallback: return cached index.html for navigation requests
         if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
+          return caches.match('/Interstitial-Journal/index.html');
         }
       });
     })
