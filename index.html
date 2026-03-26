@@ -1064,7 +1064,6 @@
       display: flex;
       background: var(--ink);
       border-top: 3px solid var(--orange);
-      padding-bottom: env(safe-area-inset-bottom, 0px);
     }
     .tab-btn {
       flex: 1;
@@ -1073,7 +1072,7 @@
       align-items: center;
       justify-content: center;
       gap: 3px;
-      padding: 9px 0 10px;
+      padding: 9px 0 calc(10px + env(safe-area-inset-bottom, 0px));
       font-family: var(--font);
       font-size: 0.55rem;
       letter-spacing: 0.14em;
