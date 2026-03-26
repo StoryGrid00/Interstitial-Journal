@@ -1,0 +1,2214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2B1F0E" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Field Journal" />
+  <meta name="description" content="A quick-capture interstitial journal for field notes between moments." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Field Journal</title>
+
+  <style>
+    /* ═══════════════════════════════════════════════════
+       DESIGN SYSTEM — Field Guide / Utilitarian Notebook
+       Palette: kraft tan, deep navy ink, safety orange
+       Font: Courier Prime (monospace)
+       Texture: dot-grid, paper grain
+
+       RULED-PAPER SYSTEM
+       --line-h : height of one ruled line (px)
+       Lines are drawn as a repeating-linear-gradient on
+       the scrolling container.  Text sits ON the line when:
+         container padding-top  ≡  0  (mod --line-h)
+         textarea   padding-top  =  0
+         font line-height        =  --line-h
+         background-position-y   =  (--line-h - 1px)
+           (puts the 1 px rule at the bottom of each row)
+    ═══════════════════════════════════════════════════ */
+
+    @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+    :root {
+      --paper:       #E8DCC8;
+      --paper-dark:  #D4C4A8;
+      --paper-light: #F2EAD8;
+      --ink:         #1B2A4A;
+      --ink-light:   #3A4F6E;
+      --ink-faint:   #8A9AB8;
+      --orange:      #C85A1A;
+      --orange-light:#E8722A;
+      --orange-pale: #F0D4B8;
+      --grid-dot:    #B8A888;
+      --border:      #9A8A6A;
+      --border-dark: #6A5A3A;
+      --shadow:      rgba(27,42,74,0.15);
+      --font:        'Courier Prime', 'Courier New', Courier, monospace;
+
+      /* Ruled paper */
+      --line-h: 28px;
+      --rule-color: var(--paper-dark);
+    }
+
+    /* ── Night mode overrides ── */
+    [data-theme="night"] {
+      --paper:       #1A1A2E;
+      --paper-dark:  #16213E;
+      --paper-light: #0F3460;
+      --ink:         #E0E0E0;
+      --ink-light:   #A0B0C8;
+      --ink-faint:   #5A6A80;
+      --orange:      #E8722A;
+      --orange-light:#F08040;
+      --orange-pale: #3A2A1A;
+      --grid-dot:    #2A3A5A;
+      --border:      #2E3E5E;
+      --border-dark: #4A5A7A;
+      --shadow:      rgba(0,0,0,0.4);
+      --rule-color:  #1E2E4A;
+    }
+    [data-theme="night"] html,
+    [data-theme="night"] body { background: #0D0D1A; }
+    [data-theme="night"] #app { background: var(--paper); }
+    [data-theme="night"] .entry-symbol.sym-note    { color: var(--orange); }
+    [data-theme="night"] .entry-symbol.sym-idea    { color: #6ABF6A; }
+    [data-theme="night"] .entry-symbol.sym-task    { color: #C48AC4; }
+    [data-theme="night"] .entry-symbol.sym-reflect { color: var(--ink-light); }
+    [data-theme="night"] .tag-note    { color: var(--orange); }
+    [data-theme="night"] .tag-idea    { color: #6ABF6A; }
+    [data-theme="night"] .tag-task    { color: #C48AC4; }
+    [data-theme="night"] .type-card[data-tag="idea"] .type-card-name,
+    [data-theme="night"] .type-card[data-tag="idea"] .type-card-count { color: #6ABF6A; }
+    [data-theme="night"] .type-card[data-tag="idea"] .type-card-bar-fill { background: #6ABF6A; }
+    [data-theme="night"] .type-card[data-tag="task"] .type-card-name,
+    [data-theme="night"] .type-card[data-tag="task"] .type-card-count { color: #C48AC4; }
+    [data-theme="night"] .type-card[data-tag="task"] .type-card-bar-fill { background: #C48AC4; }
+    [data-theme="night"] .confirm-box { background: var(--paper-light); }
+    [data-theme="night"] #compose-sheet { background: var(--paper); }
+    [data-theme="night"] .compose-area { background-color: var(--paper); }
+    [data-theme="night"] .types-body { background-color: var(--paper); }
+    [data-theme="night"] .types-callout { background: var(--paper-light); }
+    [data-theme="night"] .type-card { background: var(--paper-light); }
+
+    /* Night mode toggle button */
+    #night-toggle {
+      background: transparent;
+      border: 1px solid var(--ink-faint);
+      border-radius: 2px;
+      color: var(--ink-faint);
+      font-size: 0.9rem;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    #night-toggle:hover { border-color: var(--paper-dark); color: var(--paper-dark); }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--ink);
+    }
+
+    body {
+      font-family: var(--font);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    /* ── Dot-grid background pattern ── */
+    .dot-grid {
+      background-color: var(--paper);
+      background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* ── App Shell ── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      max-width: 480px;
+      margin: 0 auto;
+      background: var(--paper);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,0.5);
+    }
+
+    /* ── Header ── */
+    #header {
+      flex-shrink: 0;
+      background: var(--ink);
+      color: var(--paper);
+      padding: env(safe-area-inset-top, 8px) 14px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    #header::after {
+      content: '';
+      display: block;
+      height: 3px;
+      background: repeating-linear-gradient(
+        90deg,
+        var(--orange) 0px,
+        var(--orange) 10px,
+        transparent 10px,
+        transparent 14px
+      );
+      margin-top: 7px;
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 8px;
+    }
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .brand-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--paper);
+      line-height: 1;
+    }
+    .header-meta {
+      text-align: right;
+      font-size: 0.6rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.06em;
+      line-height: 1.5;
+    }
+    .header-date {
+      font-size: 0.65rem;
+      color: var(--paper-dark);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── Date nav bar ── */
+    #date-nav {
+      flex-shrink: 0;
+      background: var(--ink);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 4px 10px 5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .date-nav-label {
+      font-size: 0.55rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      flex-shrink: 0;
+    }
+    #date-scroll {
+      flex: 1;
+      display: flex;
+      gap: 5px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    #date-scroll::-webkit-scrollbar { display: none; }
+    .date-chip {
+      flex-shrink: 0;
+      font-family: var(--font);
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 9px;
+      border: 1px solid var(--ink-light);
+      border-radius: 2px;
+      color: var(--ink-faint);
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      line-height: 1.2;
+    }
+    .date-chip .dc-day   { font-size: 0.55rem; color: var(--ink-faint); }
+    .date-chip .dc-num   { font-size: 0.78rem; font-weight: 700; color: var(--paper-dark); }
+    .date-chip .dc-count { font-size: 0.5rem; color: var(--ink-faint); }
+    .date-chip.active {
+      background: var(--orange);
+      border-color: var(--orange);
+    }
+    .date-chip.active .dc-day,
+    .date-chip.active .dc-num,
+    .date-chip.active .dc-count { color: var(--paper); }
+    .date-chip:hover:not(.active) { border-color: var(--paper-dark); }
+    .date-chip:hover:not(.active) .dc-num { color: var(--paper); }
+    .date-all-btn {
+      flex-shrink: 0;
+      font-family: var(--font);
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      border: 1px solid var(--ink-light);
+      border-radius: 2px;
+      color: var(--ink-faint);
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .date-all-btn.active {
+      background: var(--ink-light);
+      border-color: var(--ink-light);
+      color: var(--paper);
+    }
+    .date-all-btn:hover:not(.active) {
+      border-color: var(--paper-dark);
+      color: var(--paper-dark);
+    }
+
+    /* ── Filter bar ── */
+    #filter-bar {
+      flex-shrink: 0;
+      background: var(--ink);
+      padding: 4px 10px 6px;
+      display: flex;
+      gap: 5px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #filter-bar::-webkit-scrollbar { display: none; }
+    .filter-chip {
+      flex-shrink: 0;
+      font-family: var(--font);
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border: 1px solid var(--ink-light);
+      border-radius: 2px;
+      color: var(--ink-faint);
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-chip.active {
+      background: var(--orange);
+      border-color: var(--orange);
+      color: var(--paper);
+    }
+    .filter-chip:hover:not(.active) {
+      border-color: var(--paper-dark);
+      color: var(--paper-dark);
+    }
+
+    /* ── Entry list ── */
+    #entry-list {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0 0 80px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    #entry-list::-webkit-scrollbar { width: 3px; }
+    #entry-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Empty state ── */
+    #empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 60px 32px;
+      text-align: center;
+      color: var(--ink-faint);
+    }
+    .empty-icon  { font-size: 2.5rem; opacity: 0.4; }
+    .empty-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--border-dark);
+    }
+    .empty-sub {
+      font-size: 0.75rem;
+      font-style: italic;
+      color: var(--ink-faint);
+      line-height: 1.6;
+    }
+
+    /* ── Day group ── */
+    .day-group { border-bottom: 2px solid var(--border); }
+    .day-group:last-child { border-bottom: none; }
+    .day-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px 4px;
+    }
+    .day-stamp {
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--paper);
+      background: var(--ink);
+      padding: 3px 8px;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+    .day-stamp.today { background: var(--orange); }
+    .day-line {
+      flex: 1;
+      height: 1px;
+      background: repeating-linear-gradient(
+        90deg, var(--border) 0px, var(--border) 4px, transparent 4px, transparent 8px
+      );
+    }
+    .day-count {
+      font-size: 0.6rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    /* ── Entry card — BuJo rapid-log format ── */
+    .entry-card {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.12s;
+      user-select: none;
+      display: flex;
+      gap: 0;
+    }
+    .entry-card:active { background: rgba(27,42,74,0.04); }
+    /* Long-press highlight */
+    .entry-card.press-hold { background: rgba(200,90,26,0.08); }
+
+    /* Timestamp column */
+    .entry-time-col {
+      flex-shrink: 0;
+      width: 62px;
+      padding: 7px 0 7px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1px;
+    }
+    .entry-time {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+    }
+    .entry-time-ampm {
+      font-size: 0.55rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* Bullet column */
+    .entry-bullet-col {
+      flex-shrink: 0;
+      width: 26px;
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .entry-symbol { font-size: 1.05rem; line-height: 1.4; color: var(--ink); }
+    .entry-symbol.sym-event   { color: var(--ink); }
+    .entry-symbol.sym-note    { color: var(--orange); }
+    .entry-symbol.sym-idea    { color: #4A8A4A; }
+    .entry-symbol.sym-task    { color: #8A4A8A; }
+    .entry-symbol.sym-reflect { color: var(--ink-light); }
+
+    /* Content column */
+    .entry-content-col {
+      flex: 1;
+      padding: 7px 12px 7px 4px;
+      border-bottom: 1px solid var(--border);
+      min-width: 0;
+    }
+    .entry-card:last-child .entry-content-col { border-bottom: none; }
+
+    .entry-body {
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: var(--ink);
+      font-family: var(--font);
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .entry-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .entry-tag {
+      font-size: 0.52rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border: 1px solid currentColor;
+      border-radius: 1px;
+    }
+    .tag-reflect { color: var(--ink-light); }
+    .tag-note    { color: var(--orange); }
+    .tag-idea    { color: #4A8A4A; }
+    .tag-task    { color: #8A4A8A; }
+    .tag-event   { color: var(--ink); }
+
+    .entry-location {
+      font-size: 0.55rem;
+      color: var(--ink-faint);
+      font-style: italic;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Swipe-to-delete hint ── */
+    .delete-hint {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      color: #C04040;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.1s;
+    }
+    .entry-card.swiping { transition: none; }
+
+    /* ── FAB ── */
+    #fab {
+      position: absolute;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+      right: 20px;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--orange);
+      color: var(--paper);
+      border: none;
+      font-size: 1.6rem;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(200,90,26,0.45), 2px 2px 0 var(--border-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.12s, box-shadow 0.12s;
+      z-index: 100;
+    }
+    #fab:active {
+      transform: scale(0.93);
+      box-shadow: 0 2px 8px rgba(200,90,26,0.35), 1px 1px 0 var(--border-dark);
+    }
+    .fab-icon { margin-top: -2px; }
+
+    /* ── Compose Sheet ── */
+    #compose-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(27,42,74,0.55);
+      z-index: 150;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s;
+    }
+    #compose-overlay.open { opacity: 1; pointer-events: auto; }
+
+    #compose-sheet {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      width: 100%;
+      max-width: 480px;
+      transform: translateX(-50%) translateY(100%);
+      transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+      background: var(--paper-light);
+      border-radius: 12px 12px 0 0;
+      border-top: 3px solid var(--orange);
+      z-index: 160;
+      display: flex;
+      flex-direction: column;
+      max-height: 90dvh;
+      overflow: hidden;
+    }
+    #compose-sheet.open { transform: translateX(-50%) translateY(0); }
+
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 10px auto 0;
+      flex-shrink: 0;
+    }
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px 8px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .sheet-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    .sheet-timestamp {
+      font-size: 0.65rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.06em;
+    }
+
+    /* Tag row */
+    .tag-row {
+      display: flex;
+      gap: 6px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 0;
+    }
+    .tag-row::-webkit-scrollbar { display: none; }
+    .tag-btn {
+      flex-shrink: 0;
+      font-family: var(--font);
+      font-size: 0.62rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 1px;
+      cursor: pointer;
+      transition: all 0.12s;
+      border: 1px solid transparent;
+    }
+    .tag-btn[data-tag="reflect"] { border-color: var(--ink-light); color: var(--ink-light); background: transparent; }
+    .tag-btn[data-tag="note"]    { border-color: var(--orange);    color: var(--orange);    background: transparent; }
+    .tag-btn[data-tag="idea"]    { border-color: #4A8A4A;          color: #4A8A4A;          background: transparent; }
+    .tag-btn[data-tag="task"]    { border-color: #8A4A8A;          color: #8A4A8A;          background: transparent; }
+    .tag-btn[data-tag="event"]   { border-color: var(--ink);       color: var(--ink);       background: transparent; }
+    .tag-btn.selected[data-tag="reflect"] { background: var(--ink-light); color: var(--paper); }
+    .tag-btn.selected[data-tag="note"]    { background: var(--orange);    color: var(--paper); }
+    .tag-btn.selected[data-tag="idea"]    { background: #4A8A4A;          color: var(--paper); }
+    .tag-btn.selected[data-tag="task"]    { background: #8A4A8A;          color: var(--paper); }
+    .tag-btn.selected[data-tag="event"]   { background: var(--ink);       color: var(--paper); }
+    .tag-sym { font-size: 1rem; font-weight: 700; margin-right: 1px; }
+
+    /* Location row */
+    .location-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .location-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      flex-shrink: 0;
+    }
+    #location-input {
+      flex: 1;
+      font-family: var(--font);
+      font-size: 0.78rem;
+      font-style: italic;
+      color: var(--ink);
+      background: transparent;
+      border: none;
+      outline: none;
+      padding: 0;
+    }
+    #location-input::placeholder { color: var(--ink-faint); }
+
+    /* ── Ruled paper writing area ──────────────────────
+       The repeating gradient draws a 1 px rule at the
+       BOTTOM of every --line-h slot.
+
+       background-position-y = (--line-h - 1px) = 27px
+       means the first rule appears 27 px from the top
+       of the container, i.e. exactly under the first
+       line of text (which occupies rows 0–27 px).
+
+       Container padding-top MUST be 0 so text row 1
+       starts at y=0 inside the background coordinate
+       system.  Horizontal padding is kept via
+       padding-left / padding-right only.
+    ── */
+    .compose-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 16px;
+      background-color: var(--paper-light);
+      /*
+        Ruled-paper grid:
+        Each slot is --line-h (28px) tall.
+        The 1px rule is drawn at the BOTTOM of each slot.
+        background-position-y = (--line-h - 1px) = 27px
+        means the first rule appears 27px from the top of the container.
+
+        Baseline-on-rule:
+        We want the BOTTOM of each letter to rest on the rule.
+        With line-height = 28px and font-size = 0.95rem (~15px),
+        the descender bottom is at the very bottom of the line box.
+        Setting padding-top = 0 and background-position-y = 27px
+        puts the rule exactly at the bottom of the first line box,
+        so letter bottoms (baselines + descenders) sit on the rule.
+      */
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent calc(var(--line-h) - 1px),
+        var(--rule-color) calc(var(--line-h) - 1px),
+        var(--rule-color) var(--line-h)
+      );
+      background-size: 100% var(--line-h);
+      background-position: 0 calc(var(--line-h) - 1px);
+    }
+    #compose-textarea {
+      width: 100%;
+      min-height: 240px;
+      font-family: var(--font);
+      font-size: 0.95rem;
+      line-height: var(--line-h);
+      color: var(--ink);
+      background: transparent;
+      border: none;
+      outline: none;
+      resize: none;
+      padding: 0;
+      margin: 0;
+      display: block;
+      user-select: text;
+      -webkit-user-select: text;
+      vertical-align: top;
+    }
+    #compose-textarea::placeholder {
+      color: var(--ink-faint);
+      font-style: italic;
+    }
+
+    /* Compose footer — save button only */
+    .compose-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--paper);
+    }
+    #save-btn {
+      font-family: var(--font);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 8px 20px;
+      background: var(--ink);
+      color: var(--paper);
+      border: none;
+      border-radius: 1px;
+      cursor: pointer;
+      box-shadow: 2px 2px 0 var(--border-dark);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    #save-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--border-dark); }
+    #save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Detail View ── */
+    #detail-overlay {
+      position: fixed;
+      top: 0; bottom: 0;
+      left: 50%;
+      width: 100%;
+      max-width: 480px;
+      background: var(--paper);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(-50%) translateX(100vw);
+      transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+      overflow: hidden;
+    }
+    #detail-overlay.open { transform: translateX(-50%) translateX(0); }
+
+    .detail-header {
+      flex-shrink: 0;
+      background: var(--ink);
+      color: var(--paper);
+      padding: env(safe-area-inset-top, 12px) 16px 0;
+    }
+    .detail-header::after {
+      content: '';
+      display: block;
+      height: 4px;
+      background: repeating-linear-gradient(
+        90deg, var(--orange) 0px, var(--orange) 12px, transparent 12px, transparent 16px
+      );
+      margin-top: 10px;
+    }
+    .detail-header-inner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-top: 12px;
+    }
+    #back-btn {
+      font-family: var(--font);
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      background: transparent;
+      border: 1px solid var(--ink-light);
+      border-radius: 1px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    #back-btn:hover { border-color: var(--paper-dark); color: var(--paper-dark); }
+    .detail-meta { flex: 1; }
+    .detail-date {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--paper);
+      letter-spacing: 0.06em;
+    }
+    .detail-time {
+      font-size: 0.6rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.08em;
+    }
+    #delete-btn {
+      font-family: var(--font);
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #C04040;
+      background: transparent;
+      border: 1px solid #C04040;
+      border-radius: 1px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    #delete-btn:hover { background: #C04040; color: var(--paper); }
+
+    /* ── Detail ruled body ─────────────────────────────
+       Same grid maths as compose-area.
+       padding-top: 0 keeps text row 1 at y=0.
+       We add a top margin on .detail-tag-row instead
+       so the tag chip has breathing room above it.
+    ── */
+    .detail-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 20px 40px;
+      background-color: var(--paper);
+      /* Same grid as compose-area: rule at bottom of each 28px slot */
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent calc(var(--line-h) - 1px),
+        var(--rule-color) calc(var(--line-h) - 1px),
+        var(--rule-color) var(--line-h)
+      );
+      background-size: 100% var(--line-h);
+      background-position: 0 calc(var(--line-h) - 1px);
+      -webkit-overflow-scrolling: touch;
+    }
+    .detail-tag-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: calc(var(--line-h) * 2);
+      margin-bottom: var(--line-h);
+    }
+    .detail-tag {
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border: 1px solid currentColor;
+      border-radius: 1px;
+    }
+    .detail-location {
+      font-size: 0.7rem;
+      font-style: italic;
+      color: var(--ink-faint);
+    }
+    .detail-text {
+      font-family: var(--font);
+      font-size: 0.95rem;
+      line-height: var(--line-h);
+      color: var(--ink);
+      white-space: pre-wrap;
+      word-break: break-word;
+      /* padding-top: 0 — grid background-position handles alignment */
+      padding: 0;
+      margin: 0;
+      display: block;
+    }
+    .detail-logged {
+      margin-top: calc(var(--line-h) * 1.5);
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--border-dark);
+      border-top: 2px dashed var(--border-dark);
+      padding-top: 12px;
+    }
+
+    /* ── Delete-confirm modal ── */
+    #confirm-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(27,42,74,0.65);
+      z-index: 400;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s;
+    }
+    #confirm-overlay.open { opacity: 1; pointer-events: auto; }
+    .confirm-box {
+      background: var(--paper-light);
+      border: 2px solid var(--border-dark);
+      border-top: 4px solid #C04040;
+      border-radius: 3px;
+      padding: 24px 24px 20px;
+      width: min(320px, 88vw);
+      box-shadow: 4px 4px 0 var(--border-dark);
+      font-family: var(--font);
+    }
+    .confirm-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #C04040;
+      margin-bottom: 8px;
+    }
+    .confirm-body {
+      font-size: 0.82rem;
+      color: var(--ink);
+      line-height: 1.55;
+      margin-bottom: 20px;
+    }
+    .confirm-body strong {
+      display: block;
+      margin-top: 6px;
+      font-style: italic;
+      color: var(--ink-light);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .confirm-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .confirm-cancel {
+      font-family: var(--font);
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 7px 16px;
+      background: transparent;
+      color: var(--ink-light);
+      border: 1px solid var(--border);
+      border-radius: 1px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .confirm-cancel:hover { border-color: var(--ink-light); color: var(--ink); }
+    .confirm-delete {
+      font-family: var(--font);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 7px 16px;
+      background: #C04040;
+      color: var(--paper);
+      border: none;
+      border-radius: 1px;
+      cursor: pointer;
+      box-shadow: 2px 2px 0 #8A2020;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .confirm-delete:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #8A2020; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--ink);
+      color: var(--paper);
+      font-family: var(--font);
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 8px 16px;
+      border-radius: 2px;
+      border-left: 3px solid var(--orange);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 300;
+      white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Stats bar ── */
+    #stats-bar {
+      flex-shrink: 0;
+      background: var(--paper-dark);
+      border-top: 1px solid var(--border);
+      padding: 5px 16px;
+      display: flex;
+      gap: 0;
+      align-items: center;
+    }
+    #stats-bar .stat-item { flex: 1; }
+    #stats-bar .stat-divider { flex-shrink: 0; }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+    }
+    .stat-value {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: 0.04em;
+    }
+    .stat-label {
+      font-size: 0.72rem !important;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink) !important;
+      font-weight: 700;
+    }
+    .stat-divider { width: 1px; height: 24px; background: var(--border); }
+    .stat-streak {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .streak-flame { font-size: 0.9rem; }
+    .streak-text {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--orange);
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Bottom tab bar ── */
+    #tab-bar {
+      flex-shrink: 0;
+      display: flex;
+      background: var(--ink);
+      border-top: 3px solid var(--orange);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .tab-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 9px 0 10px;
+      font-family: var(--font);
+      font-size: 0.55rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      border-right: 1px solid rgba(255,255,255,0.06);
+      position: relative;
+    }
+    .tab-btn:last-child { border-right: none; }
+    .tab-btn .tab-icon {
+      font-size: 1rem;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .tab-btn.active {
+      color: var(--paper);
+      background: rgba(255,255,255,0.04);
+    }
+    .tab-btn.active .tab-icon { color: var(--orange); }
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--orange);
+    }
+    .tab-btn:hover:not(.active) { color: var(--paper-dark); }
+
+    /* ── Types screen ── */
+    #types-screen {
+      position: absolute;
+      inset: 0;
+      background: var(--paper);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+      overflow: hidden;
+    }
+    #types-screen.active { transform: translateX(0); }
+
+    .types-header {
+      flex-shrink: 0;
+      background: var(--ink);
+      color: var(--paper);
+      padding: env(safe-area-inset-top, 12px) 16px 0;
+    }
+    .types-header::after {
+      content: '';
+      display: block;
+      height: 4px;
+      background: repeating-linear-gradient(
+        90deg, var(--orange) 0px, var(--orange) 12px, transparent 12px, transparent 16px
+      );
+      margin-top: 10px;
+    }
+    .types-header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 10px;
+    }
+    .types-back-btn {
+      font-family: var(--font);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--orange);
+      background: none;
+      border: 1px solid var(--orange);
+      border-radius: 3px;
+      padding: 4px 10px;
+      cursor: pointer;
+      flex-shrink: 0;
+      line-height: 1;
+      transition: background 0.15s, color 0.15s;
+    }
+    .types-back-btn:hover, .types-back-btn:focus-visible {
+      background: var(--orange);
+      color: var(--paper);
+      outline: none;
+    }
+    .types-title-block { display: flex; flex-direction: column; gap: 2px; }
+    .types-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+    .types-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--paper);
+      line-height: 1;
+    }
+    .types-subtitle {
+      font-size: 0.62rem;
+      color: var(--ink-faint);
+      font-style: italic;
+      margin-top: 2px;
+      letter-spacing: 0.08em;
+    }
+    .types-total-badge {
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      color: var(--ink-faint);
+      text-align: right;
+      line-height: 1.6;
+    }
+    .types-total-badge strong {
+      display: block;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--paper);
+      letter-spacing: 0.04em;
+    }
+
+    /* Types body — dot-grid paper */
+    .types-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 20px 40px;
+      background-color: var(--paper);
+      background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
+      background-size: 20px 20px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Most-used callout */
+    .types-callout {
+      border: 2px solid var(--border-dark);
+      border-left: 4px solid var(--orange);
+      background: var(--paper-light);
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      border-radius: 2px;
+    }
+    .types-callout-label {
+      font-size: 0.52rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 4px;
+    }
+    .types-callout-value {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .types-callout-sub {
+      font-size: 0.65rem;
+      color: var(--ink-faint);
+      font-style: italic;
+      margin-top: 2px;
+    }
+
+    /* Section heading */
+    .types-section-label {
+      font-size: 0.52rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 10px;
+      padding-bottom: 4px;
+      border-bottom: 1px dashed var(--border);
+    }
+
+    /* Type cards */
+    .type-card {
+      background: var(--paper-light);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      box-shadow: 2px 2px 0 var(--border);
+    }
+    .type-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .type-card-sym {
+      font-size: 1.4rem;
+      width: 28px;
+      text-align: center;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .type-card-name {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      flex: 1;
+    }
+    .type-card-count {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .type-card-pct {
+      font-size: 0.62rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.06em;
+      margin-left: 4px;
+    }
+    .type-card-bar-track {
+      height: 6px;
+      background: rgba(27,42,74,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .type-card-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* Per-type colour tokens */
+    .type-card[data-tag="note"]    .type-card-name,
+    .type-card[data-tag="note"]    .type-card-count  { color: var(--orange); }
+    .type-card[data-tag="note"]    .type-card-bar-fill { background: var(--orange); }
+    .type-card[data-tag="reflect"] .type-card-name,
+    .type-card[data-tag="reflect"] .type-card-count  { color: var(--ink-light); }
+    .type-card[data-tag="reflect"] .type-card-bar-fill { background: var(--ink-light); }
+    .type-card[data-tag="idea"]    .type-card-name,
+    .type-card[data-tag="idea"]    .type-card-count  { color: #4A8A4A; }
+    .type-card[data-tag="idea"]    .type-card-bar-fill { background: #4A8A4A; }
+    .type-card[data-tag="task"]    .type-card-name,
+    .type-card[data-tag="task"]    .type-card-count  { color: #8A4A8A; }
+    .type-card[data-tag="task"]    .type-card-bar-fill { background: #8A4A8A; }
+    .type-card[data-tag="event"]   .type-card-name,
+    .type-card[data-tag="event"]   .type-card-count  { color: var(--ink-light); }
+    .type-card[data-tag="event"]   .type-card-bar-fill { background: var(--ink-light); }
+
+    /* Empty types state */
+    .types-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 60px 32px;
+      text-align: center;
+      color: var(--ink-faint);
+    }
+    .types-empty-icon  { font-size: 2.5rem; opacity: 0.4; }
+    .types-empty-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--border-dark);
+    }
+    .types-empty-sub {
+      font-size: 0.75rem;
+      font-style: italic;
+      color: var(--ink-faint);
+      line-height: 1.6;
+    }
+
+    /* ── Animations ── */
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .entry-card.new-entry { animation: slideIn 0.25s ease forwards; }
+
+    /* ── Scrollbar ── */
+    * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    *::-webkit-scrollbar { width: 3px; }
+    *::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Focus ── */
+    :focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── Header ── -->
+  <header id="header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-title">FIELD JOURNAL</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="header-meta">
+          <div class="header-date" id="header-date"></div>
+          <div id="header-time"></div>
+        </div>
+        <button id="night-toggle" aria-label="Toggle night mode" title="Toggle night mode">☉</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Date nav bar ── -->
+  <div id="date-nav" role="toolbar" aria-label="Browse entries by date">
+    <span class="date-nav-label">Date</span>
+    <button class="date-all-btn active" id="date-all-btn" aria-pressed="true">All</button>
+    <div id="date-scroll" role="group" aria-label="Date chips"></div>
+  </div>
+
+  <!-- ── Filter bar ── -->
+  <div id="filter-bar" role="toolbar" aria-label="Filter entries by type">
+    <button class="filter-chip active" data-filter="all" aria-pressed="true">All</button>
+    <button class="filter-chip" data-filter="note" aria-pressed="false">– Note</button>
+    <button class="filter-chip" data-filter="reflect" aria-pressed="false">= Reflect</button>
+    <button class="filter-chip" data-filter="idea" aria-pressed="false">! Idea</button>
+    <button class="filter-chip" data-filter="task" aria-pressed="false">• Task</button>
+    <button class="filter-chip" data-filter="event" aria-pressed="false">○ Event</button>
+  </div>
+
+  <!-- ── Entry list ── -->
+  <main id="entry-list" role="main" aria-label="Journal entries" aria-live="polite">
+    <div id="empty-state">
+      <div class="empty-icon">◈</div>
+      <div class="empty-title">No entries yet</div>
+      <div class="empty-sub">Tap the + button to capture<br>your first field note.</div>
+    </div>
+  </main>
+
+  <!-- ── Stats bar ── -->
+  <footer id="stats-bar" aria-label="Journal statistics">
+    <div class="stat-item">
+      <span class="stat-value" id="stat-total">0</span>
+      <span class="stat-label">Entries</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-value" id="stat-days">0</span>
+      <span class="stat-label">Days</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-value" id="stat-today">0</span>
+      <span class="stat-label">Today</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-value" id="stat-streak-val">0</span>
+      <span class="stat-label">Streak</span>
+    </div>
+  </footer>
+
+  <!-- ── FAB ── -->
+  <button id="fab" aria-label="New journal entry">
+    <span class="fab-icon">+</span>
+  </button>
+
+  <!-- ── Tab bar ── -->
+  <nav id="tab-bar" role="tablist" aria-label="App navigation">
+    <button class="tab-btn active" id="tab-journal" role="tab" aria-selected="true" aria-controls="app-journal-view">
+      <span class="tab-icon">◈</span>
+      <span>Journal</span>
+    </button>
+    <button class="tab-btn" id="tab-types" role="tab" aria-selected="false" aria-controls="types-screen">
+      <span class="tab-icon">≡</span>
+      <span>Entry Types</span>
+    </button>
+  </nav>
+
+  <!-- ── Types screen ── -->
+  <div id="types-screen" role="tabpanel" aria-label="Entry type breakdown" aria-hidden="true">
+    <div class="types-header">
+      <div class="types-header-inner">
+        <button class="types-back-btn" id="types-back-btn" aria-label="Back to journal">← BACK</button>
+        <div class="types-title-block" style="text-align:center;">
+          <span class="types-title">ENTRY TYPES</span>
+          <span class="types-subtitle">capture breakdown</span>
+        </div>
+        <div class="types-total-badge">
+          <span>Total</span>
+          <strong id="types-total-count">0</strong>
+        </div>
+      </div>
+    </div>
+    <div class="types-body" id="types-body">
+      <div class="types-empty">
+        <div class="types-empty-icon">◈</div>
+        <div class="types-empty-title">No entries yet</div>
+        <div class="types-empty-sub">Switch to the Journal tab<br>and capture your first field note.</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ── Compose Sheet ── -->
+<div id="compose-overlay" role="presentation" aria-hidden="true"></div>
+<div id="compose-sheet" role="dialog" aria-modal="true" aria-label="New journal entry" aria-hidden="true">
+  <div class="sheet-handle" role="presentation"></div>
+  <div class="sheet-header">
+    <span class="sheet-title">New Entry</span>
+    <span class="sheet-timestamp" id="compose-timestamp"></span>
+  </div>
+  <div class="tag-row" role="group" aria-label="Entry type">
+    <button class="tag-btn selected" data-tag="note" aria-pressed="true"><span class="tag-sym">–</span> Note</button>
+    <button class="tag-btn" data-tag="reflect" aria-pressed="false"><span class="tag-sym">=</span> Reflect</button>
+    <button class="tag-btn" data-tag="idea" aria-pressed="false"><span class="tag-sym">!</span> Idea</button>
+    <button class="tag-btn" data-tag="task" aria-pressed="false"><span class="tag-sym">•</span> Task</button>
+    <button class="tag-btn" data-tag="event" aria-pressed="false"><span class="tag-sym">○</span> Event</button>
+  </div>
+  <div class="location-row">
+    <span class="location-label">Loc.</span>
+    <input id="location-input" type="text" placeholder="where are you?" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Location" />
+  </div>
+  <div class="compose-area">
+    <textarea id="compose-textarea" placeholder="Start writing…" rows="10" aria-label="Journal entry text" aria-required="true"></textarea>
+  </div>
+  <div class="compose-footer">
+    <button id="save-btn" disabled aria-label="Save journal entry">Save Entry</button>
+  </div>
+</div>
+
+<!-- ── Detail View ── -->
+<div id="detail-overlay" role="dialog" aria-modal="true" aria-label="Journal entry detail" aria-hidden="true">
+  <div class="detail-header">
+    <div class="detail-header-inner">
+      <button id="back-btn" aria-label="Back to journal list">← Back</button>
+      <div class="detail-meta">
+        <div class="detail-date" id="detail-date"></div>
+        <div class="detail-time" id="detail-time"></div>
+      </div>
+      <button id="delete-btn" aria-label="Delete this entry">Delete</button>
+    </div>
+  </div>
+  <div class="detail-body">
+    <div class="detail-tag-row">
+      <span class="detail-tag" id="detail-tag"></span>
+      <span class="detail-location" id="detail-location"></span>
+    </div>
+    <div class="detail-text" id="detail-text"></div>
+    <div class="detail-logged" id="detail-logged"></div>
+  </div>
+</div>
+
+<!-- ── Delete-confirm modal ── -->
+<div id="confirm-overlay" role="dialog" aria-modal="true" aria-label="Confirm deletion" aria-hidden="true">
+  <div class="confirm-box">
+    <div class="confirm-title">Delete entry?</div>
+    <div class="confirm-body">
+      This cannot be undone.
+      <strong id="confirm-preview"></strong>
+    </div>
+    <div class="confirm-actions">
+      <button class="confirm-cancel" id="confirm-cancel-btn">Cancel</button>
+      <button class="confirm-delete" id="confirm-delete-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   FIELD JOURNAL — App Logic
+   Storage: localStorage
+   No frameworks, no dependencies
+═══════════════════════════════════════════════════ */
+
+const DB_KEY     = 'fieldjournal_entries';
+const FILTER_KEY = 'fieldjournal_filter';
+
+// ── State ──────────────────────────────────────────
+let entries        = [];
+let currentFilter  = 'all';
+let currentDateKey = 'all';   // 'all' | 'YYYY-MM-DD'
+let currentEntryId = null;
+let composeTag     = 'note';
+let pendingDeleteId = null;   // id waiting for confirm-modal confirmation
+
+// ── Storage ────────────────────────────────────────
+function loadEntries() {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    entries = raw ? JSON.parse(raw) : [];
+  } catch(e) { entries = []; }
+}
+
+function saveEntries() {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(entries)); } catch(e) {}
+}
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+// ── BuJo rapid-log symbols ────────────────────────
+const BUJO_SYMBOLS = {
+  event:   '○',
+  note:    '–',
+  reflect: '=',
+  idea:    '!',
+  task:    '•',
+};
+
+const TAG_ORDER = ['note', 'reflect', 'idea', 'task', 'event'];
+
+// ── Date helpers ───────────────────────────────────
+function formatDate(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' }).toUpperCase();
+}
+function formatTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true });
+}
+function formatDayKey(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function isToday(ts) {
+  return formatDayKey(ts) === formatDayKey(Date.now());
+}
+
+// ── Streak ─────────────────────────────────────────
+function calcStreak() {
+  const days = [...new Set(entries.map(e => formatDayKey(e.ts)))].sort().reverse();
+  if (!days.length) return 0;
+  let streak = 0;
+  let check = new Date(); check.setHours(0,0,0,0);
+  for (const day of days) {
+    const d = new Date(day + 'T00:00:00');
+    const diff = Math.round((check - d) / 86400000);
+    if (diff === 0 || diff === 1) { streak++; check = d; }
+    else break;
+  }
+  return streak;
+}
+
+// ── Header clock ───────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('header-date').textContent =
+    now.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }).toUpperCase();
+  document.getElementById('header-time').textContent =
+    now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── Stats ──────────────────────────────────────────
+function updateStats() {
+  const todayCount = entries.filter(e => isToday(e.ts)).length;
+  const uniqueDays  = new Set(entries.map(e => formatDayKey(e.ts))).size;
+  document.getElementById('stat-total').textContent  = entries.length;
+  document.getElementById('stat-days').textContent   = uniqueDays;
+  document.getElementById('stat-today').textContent  = todayCount;
+  const streak = calcStreak();
+  const streakEl = document.getElementById('stat-streak-val');
+  if (streakEl) streakEl.textContent = streak;
+  updateTypePanel();
+}
+
+// ── Types screen renderer ─────────────────────────────────────────────
+function updateTypePanel() {
+  const body  = document.getElementById('types-body');
+  const total = entries.length;
+  document.getElementById('types-total-count').textContent = total;
+
+  if (!total) {
+    body.innerHTML = `<div class="types-empty">
+      <div class="types-empty-icon">◈</div>
+      <div class="types-empty-title">No entries yet</div>
+      <div class="types-empty-sub">Switch to the Journal tab<br>and capture your first field note.</div>
+    </div>`;
+    return;
+  }
+
+  const counts = {};
+  for (const t of TAG_ORDER) counts[t] = 0;
+  for (const e of entries) { if (counts[e.tag] !== undefined) counts[e.tag]++; }
+  const max = Math.max(...Object.values(counts), 1);
+  const syms = { note:'–', reflect:'=', idea:'!', task:'•', event:'○' };
+
+  // Most-used type
+  const topTag = TAG_ORDER.reduce((a, b) => counts[a] >= counts[b] ? a : b);
+  const topPct = total ? Math.round((counts[topTag] / total) * 100) : 0;
+
+  const callout = `<div class="types-callout">
+    <div class="types-callout-label">Most captured type</div>
+    <div class="types-callout-value">${syms[topTag]} ${topTag}</div>
+    <div class="types-callout-sub">${counts[topTag]} entr${counts[topTag] !== 1 ? 'ies' : 'y'} — ${topPct}% of total</div>
+  </div>`;
+
+  const sectionLabel = `<div class="types-section-label">All types</div>`;
+
+  const cards = TAG_ORDER.map(tag => {
+    const pct  = Math.round((counts[tag] / total) * 100);
+    const barW = Math.round((counts[tag] / max) * 100);
+    return `<div class="type-card" data-tag="${tag}">
+      <div class="type-card-header">
+        <span class="type-card-sym">${syms[tag]}</span>
+        <span class="type-card-name">${tag}</span>
+        <span class="type-card-count">${counts[tag]}<span class="type-card-pct">${pct}%</span></span>
+      </div>
+      <div class="type-card-bar-track"><div class="type-card-bar-fill" style="width:${barW}%"></div></div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML = callout + sectionLabel + cards;
+}
+
+// ── Date nav ───────────────────────────────────────
+function buildDateNav() {
+  const scroll = document.getElementById('date-scroll');
+  const days   = [...new Set(entries.map(e => formatDayKey(e.ts)))].sort().reverse();
+  if (!days.length) { scroll.innerHTML = ''; return; }
+
+  const countByDay = {};
+  for (const e of entries) {
+    const k = formatDayKey(e.ts);
+    countByDay[k] = (countByDay[k] || 0) + 1;
+  }
+
+  scroll.innerHTML = days.map(day => {
+    const d      = new Date(day + 'T12:00:00');
+    const dayNum = d.getDate();
+    const dayAbb = d.toLocaleDateString('en-US', { weekday:'short' }).toUpperCase();
+    const cnt    = countByDay[day];
+    const active = currentDateKey === day ? ' active' : '';
+    return `<button class="date-chip${active}" data-date="${day}" aria-pressed="${currentDateKey === day}">
+      <span class="dc-day">${dayAbb}</span>
+      <span class="dc-num">${dayNum}</span>
+      <span class="dc-count">${cnt}e</span>
+    </button>`;
+  }).join('');
+
+  scroll.querySelectorAll('.date-chip').forEach(chip => {
+    chip.addEventListener('click', () => selectDate(chip.dataset.date));
+  });
+}
+
+function selectDate(dateKey) {
+  currentDateKey = dateKey;
+  const allBtn = document.getElementById('date-all-btn');
+  allBtn.classList.remove('active');
+  allBtn.setAttribute('aria-pressed', 'false');
+  document.querySelectorAll('.date-chip').forEach(c => {
+    const active = c.dataset.date === dateKey;
+    c.classList.toggle('active', active);
+    c.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  renderEntries();
+}
+
+function selectAllDates() {
+  currentDateKey = 'all';
+  const allBtn = document.getElementById('date-all-btn');
+  allBtn.classList.add('active');
+  allBtn.setAttribute('aria-pressed', 'true');
+  document.querySelectorAll('.date-chip').forEach(c => {
+    c.classList.remove('active');
+    c.setAttribute('aria-pressed', 'false');
+  });
+  renderEntries();
+}
+
+document.getElementById('date-all-btn').addEventListener('click', selectAllDates);
+
+// ── Render entries ─────────────────────────────────
+function getFilteredEntries() {
+  let result = entries;
+  if (currentDateKey !== 'all') result = result.filter(e => formatDayKey(e.ts) === currentDateKey);
+  if (currentFilter  !== 'all') result = result.filter(e => e.tag === currentFilter);
+  return result;
+}
+
+function renderEntries() {
+  const list     = document.getElementById('entry-list');
+  const filtered = getFilteredEntries();
+
+  if (!filtered.length) {
+    let title = 'No entries yet';
+    let sub   = 'Tap the + button to capture<br>your first field note.';
+    if (currentDateKey !== 'all' && currentFilter !== 'all') {
+      title = `No ${currentFilter} entries on this date`;
+      sub   = 'Try a different filter or date.';
+    } else if (currentDateKey !== 'all') {
+      title = 'No entries on this date';
+      sub   = 'Select a different date or tap All.';
+    } else if (currentFilter !== 'all') {
+      title = `No ${currentFilter} entries`;
+      sub   = 'Switch filter or add a new entry.';
+    }
+    list.innerHTML = `<div id="empty-state">
+      <div class="empty-icon">◈</div>
+      <div class="empty-title">${title}</div>
+      <div class="empty-sub">${sub}</div>
+    </div>`;
+    return;
+  }
+
+  const groups = {};
+  for (const entry of filtered) {
+    const key = formatDayKey(entry.ts);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(entry);
+  }
+
+  const sortedDays = Object.keys(groups).sort().reverse();
+  let html = '';
+
+  for (const day of sortedDays) {
+    const dayEntries = groups[day];
+    const isT        = isToday(dayEntries[0].ts);
+    const shortLabel = isT
+      ? 'Today'
+      : new Date(day + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }).toUpperCase();
+
+    html += `<div class="day-group">
+      <div class="day-header">
+        <span class="day-stamp${isT ? ' today' : ''}">${shortLabel}</span>
+        <div class="day-line" role="presentation"></div>
+        <span class="day-count">${dayEntries.length} entr${dayEntries.length !== 1 ? 'ies' : 'y'}</span>
+      </div>`;
+
+    for (const entry of dayEntries) {
+      const sym       = BUJO_SYMBOLS[entry.tag] || BUJO_SYMBOLS.note;
+      const fullTime  = formatTime(entry.ts);
+      const timeParts = fullTime.match(/^(\d+:\d+)\s*(AM|PM)$/i);
+      const timeNum   = timeParts ? timeParts[1] : fullTime;
+      const timeAmPm  = timeParts ? timeParts[2] : '';
+      html += `
+      <article class="entry-card"
+               data-id="${entry.id}"
+               role="button"
+               tabindex="0"
+               aria-label="${entry.tag} entry from ${fullTime}">
+        <div class="entry-time-col">
+          <span class="entry-time">${timeNum}</span>
+          <span class="entry-time-ampm">${timeAmPm}</span>
+        </div>
+        <div class="entry-bullet-col">
+          <span class="entry-symbol sym-${entry.tag}" aria-hidden="true">${sym}</span>
+        </div>
+        <div class="entry-content-col">
+          <div class="entry-body">${escHtml(entry.text)}</div>
+          <div class="entry-meta-row">
+            <span class="entry-tag tag-${entry.tag}">${entry.tag}</span>
+            ${entry.location ? `<span class="entry-location">◎ ${escHtml(entry.location)}</span>` : ''}
+          </div>
+        </div>
+        <span class="delete-hint" aria-hidden="true">← del</span>
+      </article>`;
+    }
+    html += `</div>`;
+  }
+
+  list.innerHTML = html;
+  attachCardListeners();
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Card tap, swipe & long-press ───────────────────
+function attachCardListeners() {
+  document.querySelectorAll('.entry-card').forEach(card => {
+    const id = card.dataset.id;
+
+    // ── Tap → open detail ──
+    card.addEventListener('click', () => openDetail(id));
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(id); }
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); promptDelete(id); }
+    });
+
+    // ── Long-press → confirm delete ──
+    let pressTimer = null;
+    const LONG_PRESS_MS = 600;
+
+    function startPress(e) {
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        card.classList.remove('press-hold');
+        promptDelete(id);
+      }, LONG_PRESS_MS);
+      card.classList.add('press-hold');
+    }
+    function cancelPress() {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      card.classList.remove('press-hold');
+    }
+
+    card.addEventListener('mousedown',  startPress);
+    card.addEventListener('mouseup',    cancelPress);
+    card.addEventListener('mouseleave', cancelPress);
+    card.addEventListener('touchstart', startPress,  { passive: true });
+    card.addEventListener('touchend',   cancelPress);
+    card.addEventListener('touchcancel',cancelPress);
+
+    // ── Touch swipe-left → instant delete ──
+    let startX = 0, startY = 0, dx = 0;
+    let isSwiping = false;
+
+    card.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      dx = 0; isSwiping = false;
+    }, { passive: true });
+
+    card.addEventListener('touchmove', e => {
+      const cx = e.touches[0].clientX;
+      const cy = e.touches[0].clientY;
+      dx = cx - startX;
+      const dy = cy - startY;
+      if (!isSwiping && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+        isSwiping = true;
+        card.classList.add('swiping');
+        // cancel long-press when swipe starts
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        card.classList.remove('press-hold');
+      }
+      if (isSwiping && dx < 0) {
+        const t = Math.max(dx, -100);
+        card.style.transform = `translateX(${t}px)`;
+        const hint = card.querySelector('.delete-hint');
+        if (hint) hint.style.opacity = Math.min(Math.abs(t) / 80, 1);
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    card.addEventListener('touchend', () => {
+      card.classList.remove('swiping');
+      if (isSwiping && dx < -70) {
+        promptDelete(id);
+      } else {
+        card.style.transform = '';
+        const hint = card.querySelector('.delete-hint');
+        if (hint) hint.style.opacity = 0;
+      }
+      isSwiping = false;
+    });
+  });
+}
+
+// ── Delete confirmation modal ──────────────────────
+function promptDelete(id) {
+  const entry = entries.find(e => e.id === id);
+  if (!entry) return;
+  pendingDeleteId = id;
+
+  const preview = entry.text.length > 60 ? entry.text.slice(0, 57) + '…' : entry.text;
+  document.getElementById('confirm-preview').textContent = `"${preview}"`;
+
+  const overlay = document.getElementById('confirm-overlay');
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.getElementById('confirm-delete-btn').focus();
+}
+
+function closeConfirm() {
+  const overlay = document.getElementById('confirm-overlay');
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+  pendingDeleteId = null;
+}
+
+document.getElementById('confirm-cancel-btn').addEventListener('click', closeConfirm);
+document.getElementById('confirm-delete-btn').addEventListener('click', () => {
+  if (pendingDeleteId) {
+    const wasInDetail = document.getElementById('detail-overlay').classList.contains('open');
+    deleteEntry(pendingDeleteId);
+    if (wasInDetail) closeDetail();
+    closeConfirm();
+  }
+});
+document.getElementById('confirm-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeConfirm();
+});
+
+// ── Delete entry ───────────────────────────────────
+function deleteEntry(id) {
+  entries = entries.filter(e => e.id !== id);
+  saveEntries();
+  // If the deleted entry was the last one for the current date, reset to 'all'
+  if (currentDateKey !== 'all') {
+    const stillHas = entries.some(e => formatDayKey(e.ts) === currentDateKey);
+    if (!stillHas) selectAllDates();
+  }
+  buildDateNav();
+  renderEntries();
+  updateStats();
+  showToast('Entry deleted');
+}
+
+// ── Detail view ────────────────────────────────────
+function openDetail(id) {
+  const entry = entries.find(e => e.id === id);
+  if (!entry) return;
+  currentEntryId = id;
+
+  document.getElementById('detail-date').textContent = formatDate(entry.ts);
+  document.getElementById('detail-time').textContent = formatTime(entry.ts);
+
+  const tagEl = document.getElementById('detail-tag');
+  tagEl.textContent = entry.tag;
+  tagEl.className = `detail-tag tag-${entry.tag}`;
+
+  const locEl = document.getElementById('detail-location');
+  locEl.textContent = entry.location ? `◎ ${entry.location}` : '';
+
+  document.getElementById('detail-text').textContent = entry.text;
+  document.getElementById('detail-logged').textContent =
+    `Logged ${formatDate(entry.ts)} at ${formatTime(entry.ts)}`;
+
+  const overlay = document.getElementById('detail-overlay');
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.getElementById('back-btn').focus();
+}
+
+function closeDetail() {
+  const overlay = document.getElementById('detail-overlay');
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+  currentEntryId = null;
+}
+
+document.getElementById('back-btn').addEventListener('click', closeDetail);
+document.getElementById('delete-btn').addEventListener('click', () => {
+  if (currentEntryId) promptDelete(currentEntryId);
+});
+
+// ── Compose sheet ──────────────────────────────────
+function openCompose() {
+  composeTag = 'note';
+  document.querySelectorAll('.tag-btn').forEach(b => {
+    const sel = b.dataset.tag === composeTag;
+    b.classList.toggle('selected', sel);
+    b.setAttribute('aria-pressed', sel ? 'true' : 'false');
+  });
+  document.getElementById('compose-textarea').value = '';
+  document.getElementById('location-input').value   = '';
+  document.getElementById('save-btn').disabled      = true;
+  document.getElementById('compose-timestamp').textContent = formatTime(Date.now());
+
+  const overlay = document.getElementById('compose-overlay');
+  const sheet   = document.getElementById('compose-sheet');
+  overlay.classList.add('open');
+  sheet.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  sheet.setAttribute('aria-hidden', 'false');
+
+  setTimeout(() => document.getElementById('compose-textarea').focus(), 350);
+}
+
+function closeCompose() {
+  const overlay = document.getElementById('compose-overlay');
+  const sheet   = document.getElementById('compose-sheet');
+  overlay.classList.remove('open');
+  sheet.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+  sheet.setAttribute('aria-hidden', 'true');
+  document.getElementById('fab').focus();
+}
+
+document.getElementById('fab').addEventListener('click', openCompose);
+document.getElementById('compose-overlay').addEventListener('click', closeCompose);
+
+// Tag selection
+document.querySelectorAll('.tag-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    composeTag = btn.dataset.tag;
+    document.querySelectorAll('.tag-btn').forEach(b => {
+      const sel = b.dataset.tag === composeTag;
+      b.classList.toggle('selected', sel);
+      b.setAttribute('aria-pressed', sel ? 'true' : 'false');
+    });
+  });
+});
+
+// Filter chips
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    currentFilter = chip.dataset.filter;
+    document.querySelectorAll('.filter-chip').forEach(c => {
+      const active = c.dataset.filter === currentFilter;
+      c.classList.toggle('active', active);
+      c.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    renderEntries();
+  });
+});
+
+// Enable save button when textarea has content
+document.getElementById('compose-textarea').addEventListener('input', function() {
+  document.getElementById('save-btn').disabled = this.value.trim().length === 0;
+});
+
+// Save
+document.getElementById('save-btn').addEventListener('click', saveEntry);
+document.getElementById('compose-textarea').addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveEntry();
+  if (e.key === 'Escape') closeCompose();
+});
+
+function saveEntry() {
+  const text = document.getElementById('compose-textarea').value.trim();
+  if (!text) return;
+  const location = document.getElementById('location-input').value.trim();
+
+  const entry = {
+    id: generateId(),
+    ts: Date.now(),
+    text,
+    tag: composeTag,
+    location
+  };
+
+  entries.unshift(entry);
+  saveEntries();
+  closeCompose();
+  buildDateNav();
+  renderEntries();
+  updateStats();
+
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`[data-id="${entry.id}"]`);
+    if (card) {
+      card.classList.add('new-entry');
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  });
+
+  showToast('Entry saved');
+}
+
+// ── Toast ──────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── Keyboard: Escape closes sheets ────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('confirm-overlay').classList.contains('open')) closeConfirm();
+    else if (document.getElementById('compose-sheet').classList.contains('open')) closeCompose();
+    else if (document.getElementById('detail-overlay').classList.contains('open')) closeDetail();
+  }
+});
+
+// ── Tab switching ──────────────────────────────────────────────
+let activeTab = 'journal';
+
+function switchTab(tab) {
+  activeTab = tab;
+  const typesScreen = document.getElementById('types-screen');
+  const fab         = document.getElementById('fab');
+  const tabJournal  = document.getElementById('tab-journal');
+  const tabTypes    = document.getElementById('tab-types');
+
+  if (tab === 'types') {
+    typesScreen.classList.add('active');
+    typesScreen.setAttribute('aria-hidden', 'false');
+    fab.style.display = 'none';
+    tabJournal.classList.remove('active');
+    tabJournal.setAttribute('aria-selected', 'false');
+    tabTypes.classList.add('active');
+    tabTypes.setAttribute('aria-selected', 'true');
+    updateTypePanel();
+  } else {
+    typesScreen.classList.remove('active');
+    typesScreen.setAttribute('aria-hidden', 'true');
+    fab.style.display = '';
+    tabJournal.classList.add('active');
+    tabJournal.setAttribute('aria-selected', 'true');
+    tabTypes.classList.remove('active');
+    tabTypes.setAttribute('aria-selected', 'false');
+  }
+}
+
+document.getElementById('tab-journal').addEventListener('click', () => switchTab('journal'));
+document.getElementById('tab-types').addEventListener('click',   () => switchTab('types'));
+document.getElementById('types-back-btn').addEventListener('click', () => switchTab('journal'));
+
+// ── Handle ?new=1 manifest shortcut ─────────────────
+if (new URLSearchParams(window.location.search).get('new') === '1') {
+  window.addEventListener('load', () => setTimeout(openCompose, 400));
+}
+
+// ── Night mode ──────────────────────────────────────────
+const NIGHT_KEY = 'fj_night_mode';
+
+function applyTheme(night) {
+  document.documentElement.setAttribute('data-theme', night ? 'night' : 'day');
+  const btn = document.getElementById('night-toggle');
+  if (btn) btn.textContent = night ? '☀' : '☉';
+}
+
+// Apply saved preference on load
+const savedNight = localStorage.getItem(NIGHT_KEY) === '1';
+applyTheme(savedNight);
+
+document.getElementById('night-toggle').addEventListener('click', () => {
+  const isNight = document.documentElement.getAttribute('data-theme') === 'night';
+  const next = !isNight;
+  localStorage.setItem(NIGHT_KEY, next ? '1' : '0');
+  applyTheme(next);
+});
+
+// ── Init ────────────────────────────────────────────────────
+loadEntries();
+buildDateNav();
+renderEntries();
+updateStats();
+
+// ── Service Worker ───────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log('[SW] Registered'))
+      .catch(err => console.warn('[SW] Registration failed:', err));
+  });
+}
+</script>
+</body>
+</html>
